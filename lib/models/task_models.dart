@@ -8,6 +8,7 @@ class Task {
   DateTime date;
   String time;
   bool isDone;
+  final bool isCalendarOnly; // 1. HIER DAS FELD DEFINIEREN
 
   Task({
     required this.title,
@@ -16,6 +17,7 @@ class Task {
     required this.date,
     required this.time,
     this.isDone = false,
+    this.isCalendarOnly = false, // 2. HIER IM KONSTRUKTOR HINZUFÜGEN (mit Standardwert false)
   });
 }
 
