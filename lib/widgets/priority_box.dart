@@ -12,6 +12,7 @@ class PriorityBox extends StatelessWidget {
   final String priorityName;
   final List<Task> tasks;
   final VoidCallback onStateChanged;
+  final Function(Task) onTaskDeleted; // NEU: Funktion zum Löschen der Task
 
   const PriorityBox({
     super.key,
@@ -19,6 +20,7 @@ class PriorityBox extends StatelessWidget {
     required this.priorityName,
     required this.tasks,
     required this.onStateChanged,
+    required this.onTaskDeleted, // NEU
   });
 
   @override
@@ -49,6 +51,7 @@ class PriorityBox extends StatelessWidget {
                         title: Text(task.title),
                         content: Text(task.description.isEmpty ? 'Keine Beschreibung vorhanden.' : task.description),
                         actions: [
+                          // 1. EDIT BUTTON
                           IconButton(
                             icon: const Icon(Icons.edit, color: Colors.blue),
                             onPressed: () {
@@ -59,7 +62,42 @@ class PriorityBox extends StatelessWidget {
                               );
                             },
                           ),
-                          TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK')),
+                          // 2. NEU: DELETE BUTTON MIT BESTÄTIGUNG
+                          IconButton(
+                            icon: const Icon(Icons.delete, color: Colors.red),
+                            onPressed: () {
+                              // Sicherheits-Dialog öffnen
+                              showDialog(
+                                context: context,
+                                builder: (BuildContext confirmContext) {
+                                  return AlertDialog(
+                                    title: const Text('Task löschen?'),
+                                    content: const Text('Bist du dir sicher, dass du diese Aufgabe unwiderruflich löschen möchtest?'),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () => Navigator.pop(confirmContext), // Schließt nur die Sicherheitsabfrage
+                                        child: const Text('Abbrechen'),
+                                      ),
+                                      TextButton(
+                                        onPressed: () {
+                                          Navigator.pop(confirmContext); // Schließt Sicherheitsabfrage
+                                          Navigator.pop(context);        // Schließt die Detailansicht
+                                          onTaskDeleted(task);           // Führt das Löschen aus!
+                                        },
+                                        style: TextButton.styleFrom(foregroundColor: Colors.red),
+                                        child: const Text('Löschen'),
+                                      ),
+                                    ],
+                                  );
+                                },
+                              );
+                            },
+                          ),
+                          const Spacer(), // Schiebt das 'OK' ganz nach rechts
+                          TextButton(
+                            onPressed: () => Navigator.pop(context), 
+                            child: const Text('OK'),
+                          ),
                         ],
                       ),
                     );

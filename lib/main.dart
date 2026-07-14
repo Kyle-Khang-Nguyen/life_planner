@@ -1,27 +1,21 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart'; // NEUER IMPORT
+import 'package:supabase_flutter/supabase_flutter.dart'; 
 import 'models/task_models.dart';
 import 'widgets/priority_box.dart';
 import 'widgets/add_task_dialog.dart';
 import 'widgets/day_plan_detail_dialog.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart'; // NEUER IMPORT
+import 'package:flutter_dotenv/flutter_dotenv.dart'; 
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  // Lädt die .env Datei aus den Assets
   await dotenv.load(fileName: ".env");
-
-  // Initialisiert Supabase mit den versteckten Schlüsseln
   await Supabase.initialize(
     url: dotenv.env['SUPABASE_URL'] ?? '', 
     publishableKey: dotenv.env['SUPABASE_KEY'] ?? '',
   );
-
   runApp(const LifePlannerApp());
 }
 
-// Eine Abkürzung für den späteren Zugriff auf die Datenbank:
 final supabase = Supabase.instance.client;
 
 class LifePlannerApp extends StatelessWidget {
@@ -38,9 +32,6 @@ class LifePlannerApp extends StatelessWidget {
   }
 }
 
-// ==========================================
-// MAIN SCREEN
-// ==========================================
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
 
@@ -49,25 +40,19 @@ class MainScreen extends StatefulWidget {
 }
 
 class _MainScreenState extends State<MainScreen> {
-  // Die Listen starten jetzt erstmal LEER, da wir sie gleich aus der Cloud befüllen!
   List<DayPlanItem> _tagesplan = [];
   List<Task> _taskbox = [];
-  bool _isLoading = true; // Zeigt einen Ladekreis an, während die Daten aus dem Internet laden
+  bool _isLoading = true; 
 
   @override
   void initState() {
     super.initState();
-    _loadDataFromCloud(); // Daten beim App-Start aus der Cloud laden
+    _loadDataFromCloud(); 
   }
 
-  // ==========================================
-  // NEU: DATEN AUS DER CLOUD LADEN
-  // ==========================================
   Future<void> _loadDataFromCloud() async {
     try {
-      // 1. Tasks laden
       final taskResponse = await supabase.from('tasks').select();
-      
       final List<Task> loadedTasks = (taskResponse as List).map((data) {
         return Task(
           title: data['title'] ?? '',
@@ -79,9 +64,7 @@ class _MainScreenState extends State<MainScreen> {
         );
       }).toList();
 
-      // 2. Tagesplan laden
       final dayPlanResponse = await supabase.from('day_plan').select();
-      
       final List<DayPlanItem> loadedDayPlan = (dayPlanResponse as List).map((data) {
         return DayPlanItem(
           time: data['time'] ?? '',
@@ -98,7 +81,6 @@ class _MainScreenState extends State<MainScreen> {
         _isLoading = false;
       });
     } catch (e) {
-      // Das druckt den Fehler und genau die Zeile aus, wo es knallt:
       setState(() => _isLoading = false);
     }
   }
@@ -115,9 +97,75 @@ class _MainScreenState extends State<MainScreen> {
     _tagesplan.sort((a, b) => a.time.compareTo(b.time));
   }
 
+  Future<void> _deleteTaskFromCloud(Task taskToDelete) async {
+    setState(() => _isLoading = true); 
+    try {
+      await supabase
+          .from('tasks')
+          .delete()
+          .eq('title', taskToDelete.title)
+          .eq('time', taskToDelete.time);
+
+      setState(() {
+        _taskbox.removeWhere((task) => 
+          task.title == taskToDelete.title && 
+          task.time == taskToDelete.time
+        );
+        _isLoading = false;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Aufgabe erfolgreich gelöscht.')),
+        );
+      }
+    } catch (e) {
+      setState(() => _isLoading = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Fehler beim Löschen: $e')),
+        );
+      }
+    }
+  }
+
   // ==========================================
-  // NEU: EVENT HOCHLADEN
+  // NEU: TAGESPLAN-ELEMENT AUS SUPABASE LÖSCHEN
   // ==========================================
+  Future<void> _deleteDayPlanItemFromCloud(DayPlanItem itemToDelete) async {
+    setState(() => _isLoading = true);
+    try {
+      // Löscht das Item aus der Tabelle 'day_plan' anhand von Uhrzeit und Titel
+      await supabase
+          .from('day_plan')
+          .delete()
+          .eq('time', itemToDelete.time)
+          .eq('title', itemToDelete.title);
+
+      setState(() {
+        // Lokal aus der Liste entfernen
+        _tagesplan.removeWhere((item) => 
+          item.time == itemToDelete.time && 
+          item.title == itemToDelete.title
+        );
+        _isLoading = false;
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Termin erfolgreich gelöscht.')),
+        );
+      }
+    } catch (e) {
+      setState(() => _isLoading = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Fehler beim Löschen: $e')),
+        );
+      }
+    }
+  }
+
   void _openAddTaskDialog() {
     showDialog(
       context: context,
@@ -125,32 +173,30 @@ class _MainScreenState extends State<MainScreen> {
         onTaskAdded: (newTask) async {
           setState(() => _isLoading = true);
           try {
-            // Task in die Cloud-Tabelle schießen:
             await supabase.from('tasks').insert({
               'title': newTask.title,
               'description': newTask.description,
               'priority': newTask.priority,
-              'date': newTask.date.toIso8601String().split('T')[0], // Nur YYYY-MM-DD
+              'date': newTask.date.toIso8601String().split('T')[0], 
               'time': newTask.time,
               'isDone': newTask.isDone,
             });
-            await _loadDataFromCloud(); // Warten, bis Daten geladen sind
+            await _loadDataFromCloud(); 
           } catch (e) {
-            setState(() => _isLoading = false); // Ladekreis bei Fehler abschalten!
+            setState(() => _isLoading = false); 
           }
         },
         onDayPlanAdded: (newItem) async {
           setState(() => _isLoading = true);
           try {
-            // Tagesplan-Item in die Cloud-Tabelle schießen:
             await supabase.from('day_plan').insert({
               'time': newItem.time,
               'title': newItem.title,
               'description': newItem.description,
             });
-            await _loadDataFromCloud(); // Warten, bis Daten geladen sind
+            await _loadDataFromCloud(); 
           } catch (e) {
-            setState(() => _isLoading = false); // Ladekreis bei Fehler abschalten!
+            setState(() => _isLoading = false); 
           }
         },
       ),
@@ -158,8 +204,6 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   void _editDayPlanItem(int index, String newTime, String newTitle, String newDescription) {
-    // Das Updaten in der Cloud machen wir im nächsten Schritt, 
-    // um dich jetzt nicht mit zu viel Code auf einmal zu überwältigen!
     setState(() {
       _tagesplan[index] = DayPlanItem(time: newTime, title: newTitle, description: newDescription);
       _sortDayPlan();
@@ -186,7 +230,6 @@ class _MainScreenState extends State<MainScreen> {
           ],
         ),
       ),
-      // Wenn die App lädt, zeigen wir einen Ladekreis an:
       body: _isLoading 
           ? const Center(child: CircularProgressIndicator())
           : Padding(
@@ -204,18 +247,21 @@ class _MainScreenState extends State<MainScreen> {
                         priorityName: 'Wichtigste',
                         tasks: _taskbox,
                         onStateChanged: () => setState(() => _sortTasks()),
+                        onTaskDeleted: _deleteTaskFromCloud, 
                       ),
                       PriorityBox(
                         color: Colors.yellow[700]!,
                         priorityName: 'Wichtig',
                         tasks: _taskbox,
                         onStateChanged: () => setState(() => _sortTasks()),
+                        onTaskDeleted: _deleteTaskFromCloud, 
                       ),
                       PriorityBox(
                         color: Colors.red[600]!,
                         priorityName: 'Später',
                         tasks: _taskbox,
                         onStateChanged: () => setState(() => _sortTasks()),
+                        onTaskDeleted: _deleteTaskFromCloud, 
                       ),
                     ],
                   ),
@@ -239,6 +285,7 @@ class _MainScreenState extends State<MainScreen> {
                                   onSave: (time, title, desc) {
                                     _editDayPlanItem(index, time, title, desc);
                                   },
+                                  onDelete: () => _deleteDayPlanItemFromCloud(item), // NEU: Löschfunktion übergeben
                                 ),
                               );
                             },

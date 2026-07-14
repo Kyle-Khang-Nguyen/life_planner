@@ -4,8 +4,14 @@ import '../models/task_models.dart';
 class DayPlanDetailDialog extends StatefulWidget {
   final DayPlanItem item;
   final Function(String time, String title, String desc) onSave;
+  final VoidCallback onDelete; // NEU: Lösch-Funktion als Parameter hinzufügen
 
-  const DayPlanDetailDialog({super.key, required this.item, required this.onSave});
+  const DayPlanDetailDialog({
+    super.key, 
+    required this.item, 
+    required this.onSave,
+    required this.onDelete, // NEU
+  });
 
   @override
   State<DayPlanDetailDialog> createState() => _DayPlanDetailDialogState();
@@ -41,9 +47,44 @@ class _DayPlanDetailDialogState extends State<DayPlanDetailDialog> {
         children: [
           Text(_isEditing ? 'Element bearbeiten' : 'Details'),
           if (!_isEditing)
-            IconButton(
-              icon: const Icon(Icons.edit, color: Colors.blue),
-              onPressed: () => setState(() => _isEditing = true),
+            Row( // NEU: Icons in einer Reihe gruppiert
+              children: [
+                // 1. NEU: Mülleimer-Icon mit Sicherheitsdialog
+                IconButton(
+                  icon: const Icon(Icons.delete, color: Colors.red),
+                  onPressed: () {
+                    showDialog(
+                      context: context,
+                      builder: (BuildContext confirmContext) {
+                        return AlertDialog(
+                          title: const Text('Eintrag löschen?'),
+                          content: const Text('Möchtest du diesen Eintrag wirklich aus deinem Tagesplan löschen?'),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(confirmContext), // Nur Sicherheitsfrage schließen
+                              child: const Text('Abbrechen'),
+                            ),
+                            TextButton(
+                              onPressed: () {
+                                Navigator.pop(confirmContext); // Schließt die Sicherheitsabfrage
+                                Navigator.pop(context);        // Schließt das Detailfenster
+                                widget.onDelete();             // Führt das Löschen in main.dart aus!
+                              },
+                              style: TextButton.styleFrom(foregroundColor: Colors.red),
+                              child: const Text('Löschen'),
+                            ),
+                          ],
+                        );
+                      },
+                    );
+                  },
+                ),
+                // 2. Bestehender Bearbeiten-Button
+                IconButton(
+                  icon: const Icon(Icons.edit, color: Colors.blue),
+                  onPressed: () => setState(() => _isEditing = true),
+                ),
+              ],
             ),
         ],
       ),
