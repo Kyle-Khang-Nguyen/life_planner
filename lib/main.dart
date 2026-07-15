@@ -51,7 +51,8 @@ class _MainScreenState extends State<MainScreen> {
     _loadDataFromCloud();
   }
 
-  Future<void> _loadDataFromCloud() async {
+  // GEÄNDERT: Diese Funktion ist jetzt sauber definiert und gibt die Tasks zurück!
+  Future<List<Task>> _loadDataFromCloud() async {
     try {
       final taskResponse = await supabase.from('tasks').select();
       final List<Task> loadedTasks = (taskResponse as List).map((data) {
@@ -64,9 +65,7 @@ class _MainScreenState extends State<MainScreen> {
               : DateTime.now(),
           time: data['time'] ?? '',
           isDone: data['isDone'] ?? false,
-          isCalendarOnly:
-              data['is_calendar_only'] ??
-              false, // NEU: Wert aus der Cloud laden
+          isCalendarOnly: data['is_calendar_only'] ?? false,
         );
       }).toList();
 
@@ -88,11 +87,15 @@ class _MainScreenState extends State<MainScreen> {
         _sortDayPlan();
         _isLoading = false;
       });
+
+      return loadedTasks;
     } catch (e) {
       setState(() => _isLoading = false);
+      return [];
     }
   }
 
+  // Wieder sauber separiert
   void _sortTasks() {
     _taskbox.sort((a, b) {
       int dateCompare = a.date.compareTo(b.date);
@@ -138,13 +141,9 @@ class _MainScreenState extends State<MainScreen> {
     }
   }
 
-  // ==========================================
-  // NEU: TAGESPLAN-ELEMENT AUS SUPABASE LÖSCHEN
-  // ==========================================
   Future<void> _deleteDayPlanItemFromCloud(DayPlanItem itemToDelete) async {
     setState(() => _isLoading = true);
     try {
-      // Löscht das Item aus der Tabelle 'day_plan' anhand von Uhrzeit und Titel
       await supabase
           .from('day_plan')
           .delete()
@@ -152,7 +151,6 @@ class _MainScreenState extends State<MainScreen> {
           .eq('title', itemToDelete.title);
 
       setState(() {
-        // Lokal aus der Liste entfernen
         _tagesplan.removeWhere(
           (item) =>
               item.time == itemToDelete.time &&
@@ -190,8 +188,7 @@ class _MainScreenState extends State<MainScreen> {
               'date': newTask.date.toIso8601String().split('T')[0],
               'time': newTask.time,
               'isDone': newTask.isDone,
-              'is_calendar_only':
-                  newTask.isCalendarOnly, // NEU: Wird in die Cloud geschrieben
+              'is_calendar_only': newTask.isCalendarOnly,
             });
             await _loadDataFromCloud();
           } catch (e) {
@@ -246,34 +243,30 @@ class _MainScreenState extends State<MainScreen> {
                 style: TextStyle(color: Colors.white, fontSize: 24),
               ),
             ),
-            // 1. Der bestehende Eintrag für das Dashboard
             ListTile(
               leading: const Icon(Icons.dashboard),
               title: const Text('Dashboard / Übersicht'),
               onTap: () {
-                Navigator.pop(context); // Schließt die Seitenleiste
+                Navigator.pop(context);
               },
             ),
-            // 2. HIER ZWISCHENGEFÜGT: Der neue Kalender-Eintrag
-            // Kalender-Eintrag im Drawer (main.dart)
             ListTile(
               leading: const Icon(Icons.calendar_month),
               title: const Text('Kalender'),
               onTap: () async {
-                Navigator.pop(context); // Schließt die Seitenleiste
+                Navigator.pop(context);
 
-                // Wir warten (await), bis der Nutzer den Kalender wieder verlässt
                 await Navigator.push(
                   context,
                   MaterialPageRoute(
                     builder: (context) => CalendarScreen(
                       tasks: _taskbox,
-                      onRefreshData: _loadDataFromCloud,
+                      onRefreshData:
+                          _loadDataFromCloud, // Reicht nun das korrekte Future<List<Task>> weiter
                     ),
                   ),
                 );
 
-                // Wenn der Nutzer vom Kalender zurückkommt, laden wir die Daten auf dem Dashboard neu!
                 _loadDataFromCloud();
               },
             ),
@@ -292,14 +285,12 @@ class _MainScreenState extends State<MainScreen> {
                     style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 10),
-                  // Ersetze die Stelle im build() der main.dart, wo die PriorityBoxen stehen:
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       PriorityBox(
                         color: Colors.green[800]!,
                         priorityName: 'Wichtigste',
-                        // NEU: Nur Tasks übergeben, die KEINE reinen Kalendertermine sind
                         tasks: _taskbox
                             .where((t) => !t.isCalendarOnly)
                             .toList(),
@@ -309,7 +300,6 @@ class _MainScreenState extends State<MainScreen> {
                       PriorityBox(
                         color: Colors.yellow[700]!,
                         priorityName: 'Wichtig',
-                        // NEU: Nur Tasks übergeben, die KEINE reinen Kalendertermine sind
                         tasks: _taskbox
                             .where((t) => !t.isCalendarOnly)
                             .toList(),
@@ -319,7 +309,6 @@ class _MainScreenState extends State<MainScreen> {
                       PriorityBox(
                         color: Colors.red[600]!,
                         priorityName: 'Später',
-                        // NEU: Nur Tasks übergeben, die KEINE reinen Kalendertermine sind
                         tasks: _taskbox
                             .where((t) => !t.isCalendarOnly)
                             .toList(),
@@ -356,9 +345,8 @@ class _MainScreenState extends State<MainScreen> {
                                   onSave: (time, title, desc) {
                                     _editDayPlanItem(index, time, title, desc);
                                   },
-                                  onDelete: () => _deleteDayPlanItemFromCloud(
-                                    item,
-                                  ), // NEU: Löschfunktion übergeben
+                                  onDelete: () =>
+                                      _deleteDayPlanItemFromCloud(item),
                                 ),
                               );
                             },
