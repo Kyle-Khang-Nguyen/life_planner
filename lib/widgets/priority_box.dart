@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/task_models.dart'; // Importiert deine Modelle
-import 'edit_task_dialog.dart';       // Importiert den Edit-Dialog
+import 'edit_task_dialog.dart'; // Importiert den Edit-Dialog
 
 // ==========================================
 // EXTRACTED COMPONENT WIDGETS
@@ -25,23 +25,38 @@ class PriorityBox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final filteredTasks = tasks.where((task) => task.priority == priorityName).toList();
+    // Filtert jetzt nach der Priorität UND stellt sicher, dass es kein reiner Kalendereintrag ist!
+    final filteredTasks = tasks
+        .where((task) => task.priority == priorityName && !task.isCalendarOnly)
+        .toList();
 
     return Container(
       width: 112,
       height: 160,
-      decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(10)),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(10),
+      ),
       padding: const EdgeInsets.all(4),
       child: Column(
         children: [
-          Text(priorityName, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+          Text(
+            priorityName,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: 12,
+            ),
+          ),
           const Divider(color: Colors.white54, height: 6),
           Expanded(
             child: ListView.builder(
               itemCount: filteredTasks.length,
               itemBuilder: (context, index) {
                 final task = filteredTasks[index];
-                final String formattedDate = DateFormat('dd.MM.').format(task.date);
+                final String formattedDate = DateFormat(
+                  'dd.MM.',
+                ).format(task.date);
 
                 return InkWell(
                   onTap: () {
@@ -49,7 +64,11 @@ class PriorityBox extends StatelessWidget {
                       context: context,
                       builder: (context) => AlertDialog(
                         title: Text(task.title),
-                        content: Text(task.description.isEmpty ? 'Keine Beschreibung vorhanden.' : task.description),
+                        content: Text(
+                          task.description.isEmpty
+                              ? 'Keine Beschreibung vorhanden.'
+                              : task.description,
+                        ),
                         actions: [
                           // 1. EDIT BUTTON
                           IconButton(
@@ -58,7 +77,10 @@ class PriorityBox extends StatelessWidget {
                               Navigator.pop(context);
                               showDialog(
                                 context: context,
-                                builder: (context) => EditTaskDialog(task: task, onTaskUpdated: onStateChanged),
+                                builder: (context) => EditTaskDialog(
+                                  task: task,
+                                  onTaskUpdated: onStateChanged,
+                                ),
                               );
                             },
                           ),
@@ -72,19 +94,31 @@ class PriorityBox extends StatelessWidget {
                                 builder: (BuildContext confirmContext) {
                                   return AlertDialog(
                                     title: const Text('Task löschen?'),
-                                    content: const Text('Bist du dir sicher, dass du diese Aufgabe unwiderruflich löschen möchtest?'),
+                                    content: const Text(
+                                      'Bist du dir sicher, dass du diese Aufgabe unwiderruflich löschen möchtest?',
+                                    ),
                                     actions: [
                                       TextButton(
-                                        onPressed: () => Navigator.pop(confirmContext), // Schließt nur die Sicherheitsabfrage
+                                        onPressed: () => Navigator.pop(
+                                          confirmContext,
+                                        ), // Schließt nur die Sicherheitsabfrage
                                         child: const Text('Abbrechen'),
                                       ),
                                       TextButton(
                                         onPressed: () {
-                                          Navigator.pop(confirmContext); // Schließt Sicherheitsabfrage
-                                          Navigator.pop(context);        // Schließt die Detailansicht
-                                          onTaskDeleted(task);           // Führt das Löschen aus!
+                                          Navigator.pop(
+                                            confirmContext,
+                                          ); // Schließt Sicherheitsabfrage
+                                          Navigator.pop(
+                                            context,
+                                          ); // Schließt die Detailansicht
+                                          onTaskDeleted(
+                                            task,
+                                          ); // Führt das Löschen aus!
                                         },
-                                        style: TextButton.styleFrom(foregroundColor: Colors.red),
+                                        style: TextButton.styleFrom(
+                                          foregroundColor: Colors.red,
+                                        ),
                                         child: const Text('Löschen'),
                                       ),
                                     ],
@@ -95,7 +129,7 @@ class PriorityBox extends StatelessWidget {
                           ),
                           const Spacer(), // Schiebt das 'OK' ganz nach rechts
                           TextButton(
-                            onPressed: () => Navigator.pop(context), 
+                            onPressed: () => Navigator.pop(context),
                             child: const Text('OK'),
                           ),
                         ],
@@ -105,7 +139,10 @@ class PriorityBox extends StatelessWidget {
                   child: Padding(
                     padding: const EdgeInsets.symmetric(vertical: 2.0),
                     child: Container(
-                      decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(4)),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
                       padding: const EdgeInsets.all(4),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -133,7 +170,9 @@ class PriorityBox extends StatelessWidget {
                                     color: Colors.white,
                                     fontSize: 10,
                                     fontWeight: FontWeight.bold,
-                                    decoration: task.isDone ? TextDecoration.lineThrough : TextDecoration.none,
+                                    decoration: task.isDone
+                                        ? TextDecoration.lineThrough
+                                        : TextDecoration.none,
                                   ),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
@@ -148,7 +187,9 @@ class PriorityBox extends StatelessWidget {
                               style: TextStyle(
                                 color: Colors.white70,
                                 fontSize: 8,
-                                decoration: task.isDone ? TextDecoration.lineThrough : TextDecoration.none,
+                                decoration: task.isDone
+                                    ? TextDecoration.lineThrough
+                                    : TextDecoration.none,
                               ),
                             ),
                           ),
