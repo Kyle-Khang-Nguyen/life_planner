@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:table_calendar/table_calendar.dart';
 import '../models/task_models.dart';
 import '../widgets/add_task_dialog.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -6,7 +8,6 @@ import '../widgets/task_detail_dialog.dart';
 
 class CalendarScreen extends StatefulWidget {
   final List<Task> tasks;
-  // GEÄNDERT: Erwartet nun eine Funktion, die die frische Liste zurückgibt
   final Future<List<Task>> Function() onRefreshData;
 
   const CalendarScreen({
@@ -20,25 +21,80 @@ class CalendarScreen extends StatefulWidget {
 }
 
 class _CalendarScreenState extends State<CalendarScreen> {
+  DateTime _focusedDay = DateTime.now();
   DateTime _selectedDate = DateTime.now();
   bool _isLocalLoading = false;
   bool _isDateSelected = false; 
 
-  // Lokale Kopie der Tasks, die wir hier drin aktiv manipulieren können
   late List<Task> _localTasks;
 
   @override
   void initState() {
     super.initState();
-    _localTasks = widget.tasks; // Mit den Startdaten befüllen
+    _localTasks = widget.tasks;
   }
 
-  // Hilfsfunktion zum Laden und direkten Zuweisen
+  @override
+  void didUpdateWidget(covariant CalendarScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.tasks != oldWidget.tasks) {
+      setState(() {
+        _localTasks = widget.tasks;
+      });
+    }
+  }
+
   Future<void> _refreshLocalTasks() async {
-    final freshTasks = await widget.onRefreshData(); // Ruft main.dart auf und fängt die Daten ab!
+    final freshTasks = await widget.onRefreshData();
     setState(() {
-      _localTasks = freshTasks; // Weist die frisch geladenen Daten der lokalen Liste zu
+      _localTasks = freshTasks;
     });
+  }
+
+  List<Task> _getTasksForDay(DateTime day) {
+    return _localTasks.where((task) => isSameDay(task.date, day)).toList();
+  }
+
+  // Hilfsmethode, um den Kalender mit einer flexiblen Zeilenhöhe zu zeichnen
+  Widget _buildCalendar(double rowHeight) {
+    return TableCalendar(
+      // locale: 'de_DE', // Aktivieren, sobald intl initialisiert ist
+      firstDay: DateTime(2020),
+      lastDay: DateTime(2030),
+      focusedDay: _focusedDay,
+      selectedDayPredicate: (day) => isSameDay(_selectedDate, day),
+      calendarFormat: CalendarFormat.month,
+      startingDayOfWeek: StartingDayOfWeek.monday,
+      eventLoader: _getTasksForDay, 
+      rowHeight: rowHeight, // <--- HIER passiert die Magie!
+      daysOfWeekHeight: _isDateSelected ? 20.0 : 30.0, // Skaliert die Wochentage leicht mit
+      headerStyle: const HeaderStyle(
+        formatButtonVisible: false,
+        titleCentered: true,
+      ),
+      calendarStyle: CalendarStyle(
+        todayDecoration: BoxDecoration(
+          color: Colors.blue.withOpacity(0.3),
+          shape: BoxShape.circle,
+        ),
+        selectedDecoration: const BoxDecoration(
+          color: Colors.blue,
+          shape: BoxShape.circle,
+        ),
+        markersMaxCount: 3,
+        markerDecoration: const BoxDecoration(
+          color: Colors.deepPurple,
+          shape: BoxShape.circle,
+        ),
+      ),
+      onDaySelected: (selectedDay, focusedDay) {
+        setState(() {
+          _selectedDate = selectedDay;
+          _focusedDay = focusedDay;
+          _isDateSelected = true; 
+        });
+      },
+    );
   }
 
   void _openAddTaskDialog() {
@@ -52,10 +108,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
               'title': newTask.title,
               'description': newTask.description,
               'priority': newTask.priority,
-              'date':
-                  (newTask.date.year == DateTime.now().year &&
-                      newTask.date.month == DateTime.now().month &&
-                      newTask.date.day == DateTime.now().day)
+              'date': isSameDay(newTask.date, DateTime.now())
                   ? _selectedDate.toIso8601String().split('T')[0]
                   : newTask.date.toIso8601String().split('T')[0],
               'time': newTask.time,
@@ -63,7 +116,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
               'is_calendar_only': newTask.isCalendarOnly,
             });
 
-            await _refreshLocalTasks(); // Holt die Daten direkt in diesen Screen!
+            await _refreshLocalTasks();
           } catch (e) {
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
@@ -81,7 +134,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
               'title': newItem.title,
               'description': newItem.description,
             });
-            await _refreshLocalTasks(); // Aktualisiert die Daten
+            await _refreshLocalTasks();
           } catch (_) {}
           if (mounted) setState(() => _isLocalLoading = false);
         },
@@ -91,54 +144,56 @@ class _CalendarScreenState extends State<CalendarScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Nutzt die lokale Liste, die wir oben über _refreshLocalTasks() live updaten!
-    final tasksForSelectedDate = _localTasks.where((task) {
-      return task.date.year == _selectedDate.year &&
-          task.date.month == _selectedDate.month &&
-          task.date.day == _selectedDate.day;
-    }).toList();
+    final tasksForSelectedDate = _getTasksForDay(_selectedDate);
 
     return Scaffold(
-    resizeToAvoidBottomInset: false, // NEU: Verhindert, dass die Tastatur das Kalender-Layout im Hintergrund zusammendrückt!
-    appBar: AppBar(title: const Text('Kalender')),
-    body: _isLocalLoading
-        ? const Center(child: CircularProgressIndicator())
-        : Column(
-            children: [
-              CalendarDatePicker(
-                initialDate: _selectedDate,
-                firstDate: DateTime(2020),
-                lastDate: DateTime(2030),
-                onDateChanged: (DateTime date) {
-                  setState(() {
-                    _selectedDate = date;
-                    _isDateSelected = true; 
-                  });
-                },
-              ),
+      resizeToAvoidBottomInset: false,
+      appBar: AppBar(title: const Text('Kalender')),
+      body: _isLocalLoading
+          ? const Center(child: CircularProgressIndicator())
+          : Column(
+              children: [
+                // 1. DYNAMISCHER KALENDER-BEREICH
+                if (!_isDateSelected)
+                  Expanded(
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        // Wir ziehen ca. 80 Pixel für den Header und Abstände ab 
+                        // und teilen den Rest durch 6 Zeilen auf.
+                        final availableHeight = constraints.maxHeight - 80;
+                        final dynamicRowHeight = (availableHeight / 6).clamp(52.0, 120.0);
 
-                if (_isDateSelected) ...[
-                  const Divider(),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16.0,
-                      vertical: 8.0,
+                        return Container(
+                          padding: const EdgeInsets.all(8.0),
+                          alignment: Alignment.center,
+                          child: _buildCalendar(dynamicRowHeight),
+                        );
+                      },
                     ),
+                  )
+                else
+                  Padding(
+                    padding: const EdgeInsets.all(8.0),
+                    child: _buildCalendar(52.0), // Kompakt, wenn Details offen sind
+                  ),
+
+                // 2. DETAILS-BEREICH (Wird nur geladen, wenn ein Tag aktiv ausgewählt ist)
+                if (_isDateSelected) ...[
+                  const Divider(height: 1),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
-                          'Aufgaben am ${_selectedDate.day}.${_selectedDate.month}.${_selectedDate.year}:',
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
+                          'Termine am ${DateFormat('dd.MM.yyyy').format(_selectedDate)}',
+                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                         ),
                         IconButton(
-                          icon: const Icon(Icons.close, size: 20),
+                          icon: const Icon(Icons.close),
                           onPressed: () {
                             setState(() {
-                              _isDateSelected = false;
+                              _isDateSelected = false; // Schließt Details & maximiert den Kalender
                             });
                           },
                         ),
@@ -148,7 +203,10 @@ class _CalendarScreenState extends State<CalendarScreen> {
                   Expanded(
                     child: tasksForSelectedDate.isEmpty
                         ? const Center(
-                            child: Text('Keine Aufgaben für diesen Tag.'),
+                            child: Text(
+                              'Keine Aufgaben für diesen Tag.',
+                              style: TextStyle(color: Colors.grey),
+                            ),
                           )
                         : ListView.builder(
                             itemCount: tasksForSelectedDate.length,
@@ -182,8 +240,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                               .delete()
                                               .eq('title', task.title)
                                               .eq('time', task.time);
-                                          
-                                          await _refreshLocalTasks(); // Daten direkt abfangen und anzeigen!
+                                          await _refreshLocalTasks();
                                         } catch (e) {
                                           print("Fehler beim Löschen: $e");
                                         }
@@ -207,8 +264,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                                               })
                                               .eq('title', task.title)
                                               .eq('time', task.time);
-                                          
-                                          await _refreshLocalTasks(); // Daten direkt abfangen und anzeigen!
+                                          await _refreshLocalTasks();
                                         } catch (e) {
                                           print("Fehler beim Update: $e");
                                         }
