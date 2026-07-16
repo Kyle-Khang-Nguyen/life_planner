@@ -52,13 +52,14 @@ class _CalendarScreenState extends State<CalendarScreen> {
   }
 
   List<Task> _getTasksForDay(DateTime day) {
-    return _localTasks.where((task) => isSameDay(task.date, day)).toList();
+    return _localTasks.where((task) {
+      return isSameDay(task.date, day) && task.isCalendarOnly;
+    }).toList();
   }
 
-  // Hilfsmethode, um den Kalender mit einer flexiblen Zeilenhöhe zu zeichnen
   Widget _buildCalendar(double rowHeight) {
     return TableCalendar(
-      // locale: 'de_DE', // Aktivieren, sobald intl initialisiert ist
+      // locale: 'de_DE', 
       firstDay: DateTime(2020),
       lastDay: DateTime(2030),
       focusedDay: _focusedDay,
@@ -66,8 +67,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
       calendarFormat: CalendarFormat.month,
       startingDayOfWeek: StartingDayOfWeek.monday,
       eventLoader: _getTasksForDay, 
-      rowHeight: rowHeight, // <--- HIER passiert die Magie!
-      daysOfWeekHeight: _isDateSelected ? 20.0 : 30.0, // Skaliert die Wochentage leicht mit
+      rowHeight: rowHeight, 
+      sixWeekMonthsEnforced: true, // <--- NEU: Verhindert Höhen-Sprünge zwischen den Monaten!
+      daysOfWeekHeight: _isDateSelected ? 20.0 : 30.0, 
       headerStyle: const HeaderStyle(
         formatButtonVisible: false,
         titleCentered: true,
@@ -113,7 +115,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                   : newTask.date.toIso8601String().split('T')[0],
               'time': newTask.time,
               'isDone': newTask.isDone,
-              'is_calendar_only': newTask.isCalendarOnly,
+              'is_calendar_only': true, // Standardmäßig true für reine Kalendertasks
             });
 
             await _refreshLocalTasks();
@@ -158,9 +160,9 @@ class _CalendarScreenState extends State<CalendarScreen> {
                   Expanded(
                     child: LayoutBuilder(
                       builder: (context, constraints) {
-                        // Wir ziehen ca. 80 Pixel für den Header und Abstände ab 
-                        // und teilen den Rest durch 6 Zeilen auf.
-                        final availableHeight = constraints.maxHeight - 80;
+                        // NEU: Wir ziehen 110 statt 80 Pixel ab. 
+                        // Das lässt genug Platz für Header, Wochentage und Paddings.
+                        final availableHeight = constraints.maxHeight - 110.0;
                         final dynamicRowHeight = (availableHeight / 6).clamp(52.0, 120.0);
 
                         return Container(
@@ -174,10 +176,10 @@ class _CalendarScreenState extends State<CalendarScreen> {
                 else
                   Padding(
                     padding: const EdgeInsets.all(8.0),
-                    child: _buildCalendar(52.0), // Kompakt, wenn Details offen sind
+                    child: _buildCalendar(52.0), 
                   ),
 
-                // 2. DETAILS-BEREICH (Wird nur geladen, wenn ein Tag aktiv ausgewählt ist)
+                // 2. DETAILS-BEREICH
                 if (_isDateSelected) ...[
                   const Divider(height: 1),
                   Padding(
@@ -193,7 +195,7 @@ class _CalendarScreenState extends State<CalendarScreen> {
                           icon: const Icon(Icons.close),
                           onPressed: () {
                             setState(() {
-                              _isDateSelected = false; // Schließt Details & maximiert den Kalender
+                              _isDateSelected = false; 
                             });
                           },
                         ),
